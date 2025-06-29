@@ -21,7 +21,7 @@ def encode_text(text, model, processor, device):
     return emb.cpu().numpy()
 
 
-def main():
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Search CLIP-indexed image collection")
     parser.add_argument("query", type=str, help="Text query (e.g. 'a red bicycle')")
     parser.add_argument(
@@ -63,7 +63,3 @@ def main():
     print(f'\nTop {args.top_k} matches for: "{args.query}"\n')
     for rank, (score, idx) in enumerate(zip(D[0], I[0]), 1):
         print(f"{rank:2d}. {score:.3f} — {paths[idx]}")
-
-
-if __name__ == "__main__":
-    main()
