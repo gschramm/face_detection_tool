@@ -2,9 +2,41 @@
 import json
 import torch
 import faiss
-import numpy as np
 import argparse
 from transformers import CLIPModel, CLIPProcessor
+from pathlib import Path
+
+import sqlite3
+import pandas as pd
+from os.path import expanduser
+
+
+def get_darktable_index():
+    # —2— Paths to your Darktable DBs
+    library_db = expanduser("~/.config/darktable/library.db")
+    data_db = expanduser("~/.config/darktable/data.db")
+
+    # —3— Connect & attach
+    conn = sqlite3.connect(library_db)
+    conn.execute(f"ATTACH DATABASE '{data_db}' AS data")
+
+    query = f"""
+    SELECT
+      i.id        AS id,
+      fr.folder   AS folder,
+      i.filename  AS filename
+    FROM images         AS i
+    JOIN film_rolls    AS fr ON i.film_id = fr.id
+    GROUP BY i.id
+    """
+
+    # —5— Run and grab a neat DataFrame
+    df = pd.read_sql_query(query, conn)
+    df.set_index("id", inplace=True)
+
+    conn.close()
+
+    return df
 
 
 def load_model(model_name, device):
@@ -60,6 +92,17 @@ if __name__ == "__main__":
 
     # Search
     D, I = index.search(query_vec, args.top_k)
+
+    # get the darktable index
+    dt_index = get_darktable_index()
+
     print(f'\nTop {args.top_k} matches for: "{args.query}"\n')
     for rank, (score, idx) in enumerate(zip(D[0], I[0]), 1):
-        print(f"{rank:2d}. {score:.3f} — {paths[idx]}")
+        file_id = int(Path(paths[idx]).stem)
+        print(f"{rank:2d}. {score:.3f} — {file_id}")
+
+        dt_fileinfo = dt_index.loc[file_id]
+        fpath = Path(dt_fileinfo["folder"]) / dt_fileinfo["filename"]
+        print(f"   Darktable path: {fpath}")
+
+        print("")
